@@ -5,9 +5,10 @@ import pyrealsense2 as rs
 from ultralytics import YOLO
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from FUNCTIONS import *
 
 draw = True
-plot = True  # Set to True if you want to plot the 3D positions
+plot = False  # Set to True if you want to plot the 3D positions
 
 # Initialize YOLOv9 segmentation model
 model = YOLO("yolov9e-seg.pt")
@@ -15,8 +16,8 @@ model = YOLO("yolov9e-seg.pt")
 # Initialize RealSense pipeline
 pipeline = rs.pipeline()
 config = rs.config()
-config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
-config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+config.enable_stream(rs.stream.depth, 640*2, 360*2, rs.format.z16, 30)
+config.enable_stream(rs.stream.color, 640*2, 360*2, rs.format.bgr8, 30)
 pipeline.start(config)
 
 # Create align object to align depth to color frame
@@ -34,44 +35,6 @@ camera_to_robot_transform = np.array([
     [0.95994432, -0.05233596, 0.2752596, -0.0485],
     [0, 0, 0, 1]
 ], dtype=np.float32)
-
-# Function to remove outliers based on IQR
-def remove_outliers(data):
-    if len(data) == 0:
-        return data
-    q1, q3 = np.percentile(data, [25, 75])
-    iqr = q3 - q1
-    lower_bound = q1 - 1.5 * iqr
-    upper_bound = q3 + 1.5 * iqr
-    return data[(data >= lower_bound) & (data <= upper_bound)]
-
-# Initialize matplotlib for 3D plotting
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-# Initialize scatter plot
-scatter = ax.scatter([], [], [], c='r', marker='o')
-
-def update_plot(x, y, z, ids):
-    # Clear previous plot
-    ax.cla()
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([0, 5])
-    ax.set_zlim([-1, 1])
-    
-    # Update scatter plot
-    scatter = ax.scatter(x, y, z, c='r', marker='o')
-    for i, txt in enumerate(ids):
-        ax.text(x[i], y[i], z[i], txt, fontsize=8, color='blue')
-    
-    plt.draw()
-    plt.pause(0.001)
-
-# Load class names from YOLOv9 model
-class_names = model.names
 
 # Processing loop
 try:
