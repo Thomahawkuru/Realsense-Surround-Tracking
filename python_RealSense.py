@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 draw = True
-plot = False  # Set to True if you want to plot the 3D positions
+plot = True  # Set to True if you want to plot the 3D positions
 
 # Initialize YOLOv9 segmentation model
 model = YOLO("yolov9e-seg.pt")
@@ -48,12 +48,6 @@ def remove_outliers(data):
 # Initialize matplotlib for 3D plotting
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-ax.set_xlim([-1, 1])  # Set x-axis limits
-ax.set_ylim([-3, 0])  # Set y-axis limits
-ax.set_zlim([-1, 1])  # Set z-axis limits
 
 # Initialize scatter plot
 scatter = ax.scatter([], [], [], c='r', marker='o')
@@ -65,7 +59,7 @@ def update_plot(x, y, z, ids):
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_xlim([-1, 1])
-    ax.set_ylim([-3, 0])
+    ax.set_ylim([0, 5])
     ax.set_zlim([-1, 1])
     
     # Update scatter plot
@@ -157,7 +151,7 @@ try:
 
                         # Append to lists
                         x_robot.append(robot_z)
-                        y_robot.append(robot_y)
+                        y_robot.append(-robot_y)
                         z_robot.append(robot_x)
 
                         # Append object ID and name to the list
