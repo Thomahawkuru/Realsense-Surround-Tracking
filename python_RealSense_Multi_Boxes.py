@@ -1,31 +1,20 @@
-from collections import defaultdict
 import cv2
 import numpy as np
+import json
 import pyrealsense2 as rs
 from ultralytics import YOLO
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from FUNCTIONS import *
+from FUNCTIONS import *  # Assuming this contains your custom functions
+import threading
 
 draw = True
 plot = False  # Set to True if you want to plot the 3D positions
 
-# Initialize YOLOv9 model
-model = YOLO("yolov10x.pt")
-
-# Initialize RealSense pipeline
-pipeline = rs.pipeline()
-config = rs.config()
-config.enable_stream(rs.stream.depth, 640*2, 360*2, rs.format.z16, 30)
-config.enable_stream(rs.stream.color, 640*2, 360*2, rs.format.bgr8, 30)
-pipeline.start(config)
-
-# Create align object to align depth to color frame
-align_to = rs.stream.color
-align = rs.align(align_to)
+# Initialize RealSense pipeline for cameras
+with open('CAMERAS.json', 'r') as f:
+    pipelines, aligns = initialize_cameras(serials=json.load(f).get("serials", []), resolution=[640, 360])
 
 # Define camera intrinsic parameters (adjust based on your calibration)
-fx, fy = 605.5, 605.5  # Focal lengths in pixels
+fx, fy = 640, 640  # Focal lengths in pixels
 cx, cy = 640, 360  # Principal point in pixels (center)
 
 # Define camera extrinsic parameters (transformation matrix from camera frame to robot frame)
@@ -36,16 +25,27 @@ camera_transform = np.array([
     [0, 0, 0, 1]   # Homogeneous coordinate
 ], dtype=np.float32)
 
-# Processing loop
-try:
+# Initialize a YOLOv9 model for each camera
+models = [YOLO("yolov10x.pt") for _ in range(len(pipelines))]
+
+# Store annotated frames and 3D coordinates for each camera
+annotated_frames = [None] * len(pipelines)
+robot_coordinates_list = [None] * len(pipelines)
+
+# Define the camera processing function for threading
+def process_camera(pipeline, align, model, idx):
+    global annotated_frames, robot_coordinates_list
+
     while True:
-        # Wait for RealSense frames
-        frames = pipeline.wait_for_frames()
-        aligned_frames = align.process(frames)
+        # Wait for frames
+        frame = pipeline.wait_for_frames()
 
-        depth_frame = aligned_frames.get_depth_frame()
-        color_frame = aligned_frames.get_color_frame()
+        # Align depth to color
+        aligned_frame = align.process(frame)
+        depth_frame = aligned_frame.get_depth_frame()
+        color_frame = aligned_frame.get_color_frame()
 
+        # Check if any frames are missing
         if not depth_frame or not color_frame:
             continue
 
@@ -56,15 +56,12 @@ try:
         # Run YOLOv9 tracking on the color image
         results = model.track(color_image, persist=True)
 
-        # Visualize the results on the frame (draw bounding boxes)
+        # Visualize the results on the frame (draw bounding boxes and masks)
         if draw:
             annotated_frame = results[0].plot(boxes=True, masks=False)
 
         # Lists to store 3D coordinates and object IDs
-        x_robot = []
-        y_robot = []
-        z_robot = []
-        object_ids = []
+        x_robot, y_robot, z_robot, object_ids = [], [], [], []
 
         # Loop through each detected object
         for result in results:
@@ -99,7 +96,7 @@ try:
 
                     # Append to lists
                     x_robot.append(robot_x)
-                    y_robot.append(-robot_y)
+                    y_robot.append(robot_y)
                     z_robot.append(robot_z)
 
                     # Append object ID and name to the list
@@ -108,7 +105,7 @@ try:
                     if draw:
                         # Annotate the frame with the object's robot position at the center of the bounding box
                         label = f"ID {obj_id} ({obj_name}):\n({robot_x:.2f}, {robot_y:.2f}, {robot_z:.2f})"
-                        
+
                         # Split the label into multiple lines
                         lines = label.split('\n')
                         for j, line in enumerate(lines):
@@ -122,19 +119,43 @@ try:
                             cv2.putText(annotated_frame, line, (text_x, text_y), 
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
-        # Update the 3D plot
-        if plot:
-            update_plot(x_robot, y_robot, z_robot, object_ids)
+        # Store the annotated frame and 3D coordinates for the camera
+        annotated_frames[idx] = annotated_frame
+        robot_coordinates_list[idx] = (x_robot, y_robot, z_robot, object_ids)
 
-        # Display the annotated frame with bounding boxes
-        if draw:
-            cv2.imshow("YOLOv10 Detection with Robot Position and Bounding Boxes", annotated_frame)
+# Create and start a thread for each camera
+threads = []
+for i, (pipeline, align, model) in enumerate(zip(pipelines, aligns, models)):
+    thread = threading.Thread(target=process_camera, args=(pipeline, align, model, i))
+    threads.append(thread)
+    thread.start()
+
+# Display the combined results
+try:
+    while True:
+        # Combine the annotated frames side by side (when available)
+        if all(frame is not None for frame in annotated_frames):
+            combined_frame = np.hstack(annotated_frames)
+            cv2.imshow("YOLOv9 Detection with Depth and Masks", combined_frame)
+
+        # Update the 3D plot with robot coordinates from each camera
+        if plot and all(coords is not None for coords in robot_coordinates_list):
+            all_x_robot, all_y_robot, all_z_robot, all_object_ids = [], [], [], []
+            for coords in robot_coordinates_list:
+                x_robot, y_robot, z_robot, object_ids = coords
+                all_x_robot.extend(x_robot)
+                all_y_robot.extend(y_robot)
+                all_z_robot.extend(z_robot)
+                all_object_ids.extend(object_ids)
+            update_plot(all_x_robot, all_y_robot, all_z_robot, all_object_ids)
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 finally:
-    # Release resources
-    pipeline.stop()
-    plt.close()
+    # Stop threads and release resources
+    for thread in threads:
+        thread.join()
+    for pipeline in pipelines:
+        pipeline.stop()
     cv2.destroyAllWindows()

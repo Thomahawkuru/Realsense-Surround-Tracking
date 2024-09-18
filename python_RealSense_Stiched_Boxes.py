@@ -1,5 +1,5 @@
 from collections import defaultdict
-import cv2
+import cv2, json
 import numpy as np
 import pyrealsense2 as rs
 from ultralytics import YOLO
@@ -14,7 +14,8 @@ plot = False  # Set to True if you want to plot the 3D positions
 model = YOLO("yolov10x.pt")
 
 # Initialize RealSense pipeline for cameras
-pipelines, aligns = initialize_cameras(serials=["046122251145","046122250499"])
+with open('CAMERAS.json', 'r') as f:
+    pipelines, aligns = initialize_cameras(serials=json.load(f).get("serials", []))
 
 # Define camera intrinsic parameters (adjust based on your calibration)
 fx, fy = 632, 630  # Focal lengths in pixels

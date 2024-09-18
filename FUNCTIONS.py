@@ -1,3 +1,4 @@
+from ultralytics import YOLO
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -50,7 +51,7 @@ def remove_outliers(data):
     upper_bound = q3 + 1.5 * iqr
     return data[(data >= lower_bound) & (data <= upper_bound)]
 
-def update_plot(x, y, z, ids):
+def update_plot(x, z, y, ids):
     # Initialize matplotlib for 3D plotting
     fig = plt.figure(1)
     ax = fig.add_subplot(111, projection='3d')
@@ -58,8 +59,8 @@ def update_plot(x, y, z, ids):
     # Clear previous plot
     ax.cla()
     ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
+    ax.set_ylabel('Z')
+    ax.set_zlabel('Y')
     ax.set_xlim([-1, 1])
     ax.set_ylim([0, 5])
     ax.set_zlim([-1, 1])
@@ -75,19 +76,19 @@ def update_plot(x, y, z, ids):
 def crop_image(image, crop_pixels):
     return image[:, crop_pixels:-crop_pixels]
 
-def initialize_cameras(serials, depth_resolution=(640*2, 360*2), color_resolution=(640*2, 360*2), fps=30):
+def initialize_cameras(serials, resolution=(640*2, 360*2), fps=30):
     """
     Initializes RealSense pipelines for multiple cameras and returns the pipelines, align objects, and camera parameters.
     
     Parameters:
         serials (list of str): List of serial numbers for the RealSense cameras.
-        depth_resolution (tuple): Resolution of the depth stream.
-        color_resolution (tuple): Resolution of the color stream.
+        resolution (tuple): Resolution of the depth stream.
         fps (int): Frames per second.
 
     Returns:
         tuple: (pipelines, aligns, fx, fy, cx, cy, camera_to_robot_transform)
     """
+    print(serials)
     pipelines = []
     aligns = []
     
@@ -95,8 +96,8 @@ def initialize_cameras(serials, depth_resolution=(640*2, 360*2), color_resolutio
         pipeline = rs.pipeline()
         config = rs.config()
         config.enable_device(serial)
-        config.enable_stream(rs.stream.depth, *depth_resolution, rs.format.z16, fps)
-        config.enable_stream(rs.stream.color, *color_resolution, rs.format.bgr8, fps)
+        config.enable_stream(rs.stream.depth, *resolution, rs.format.z16, fps)
+        config.enable_stream(rs.stream.color, *resolution, rs.format.bgr8, fps)
         
         pipeline.start(config)
         align = rs.align(rs.stream.color)
@@ -105,3 +106,16 @@ def initialize_cameras(serials, depth_resolution=(640*2, 360*2), color_resolutio
         aligns.append(align)
     
     return pipelines, aligns
+
+def run_tracker_in_thread(model_name, image):
+    """
+    Run YOLO tracker in its own thread for concurrent processing.
+
+    Args:
+        model_name (str): The YOLOv8 model object.
+        filename (str): The path to the video file or the identifier for the webcam/external camera source.
+    """
+    model = YOLO(model_name)
+    results = model.track(image, save=True, stream=True)
+    for r in results:
+        pass
