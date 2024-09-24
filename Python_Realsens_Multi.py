@@ -31,7 +31,7 @@ robot_coordinates_list = [None] * len(pipelines)
 
 # Initialize matplotlib for 3D plotting outside of the function
 if plot:
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10,10))
     ax = fig.add_subplot(111, projection='3d')
     ax.set_xlabel('X')
     ax.set_ylabel('Z')
