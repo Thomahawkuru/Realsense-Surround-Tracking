@@ -6,37 +6,28 @@ from ultralytics import YOLO
 import threading
 from FUNCTIONS import *
 
-draw = True
-plot = False  # Set to True if you want to plot the 3D positions
+draw = False
+plot = True  # Set to True if you want to plot the 3D positions
+
+# Load serials and extrinsics from CAMERAS.json
+with open('CAMERAS.json', 'r') as f:
+    camera_data = json.load(f)
+    serials = camera_data["serials"]
+    extrinsics = camera_data.get("extrinsics", {})
 
 # Initialize RealSense pipeline for cameras
-with open('CAMERAS.json', 'r') as f:
-    camera_config = json.load(f)
-    pipelines, aligns = initialize_cameras(serials=camera_config.get("serials", []), resolution=[640, 360])
+pipelines, aligns, profiles = initialize_cameras(serials=serials, resolution=[640, 360])
 
-# Define camera intrinsic parameters (adjust based on your calibration)
-fx, fy = 640, 640  # Focal lengths in pixels
-cx, cy = 640, 360  # Principal point in pixels (center)
-
-# Define camera extrinsic parameters (transformation matrix from camera frame to robot frame)
-camera_transform = np.array([
-    [1, 0, 0, 0],  # No rotation on X, no translation on X
-    [0, 1, 0, 0],  # No rotation on Y, no translation on Y
-    [0, 0, 1, 0],  # No rotation on Z, no translation on Z
-    [0, 0, 0, 1]   # Homogeneous coordinate
-], dtype=np.float32)
-
-# Initialize a YOLOv9 model for each camera
-# Initialize a YOLOv9 model for each camera
+# Initialize a YOLO model for each camera
 models = [YOLO("yolov9e-seg.pt") for _ in range(len(pipelines))]
 
 # Store annotated frames and 3D coordinates for each camera
 annotated_frames = [None] * len(pipelines)
 robot_coordinates_list = [None] * len(pipelines)
 
-# Camera processing function for threading
-def process_camera(pipeline, align, model, idx):
+def process_camera(pipeline, align, profile, model, idx, camera_transform):
     global annotated_frames, robot_coordinates_list
+    intrinsics = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
 
     while True:
         # Wait for frames
@@ -61,6 +52,8 @@ def process_camera(pipeline, align, model, idx):
         # Visualize the results on the frame (draw bounding boxes and masks)
         if draw:
             annotated_frame = results[0].plot(boxes=False, masks=True)
+        else:
+            annotated_frame = color_image.copy()  # Ensure annotated_frame is always defined
 
         # Lists to store 3D coordinates and object IDs
         x_robot, y_robot, z_robot, object_ids = [], [], [], []
@@ -103,12 +96,12 @@ def process_camera(pipeline, align, model, idx):
                         else:
                             center_x, center_y = 0, 0
 
-                        # Convert depth and pixel coordinates to 3D robot coordinates
-                        x = (center_x - cx) * average_depth / fx
-                        y = -(center_y - cy) * average_depth / fy
+                        # Convert depth and pixel coordinates to 3D coordinates
+                        x = (center_x - intrinsics.ppx) * average_depth / intrinsics.fx
+                        y = (center_y - intrinsics.ppy) * average_depth / intrinsics.fy
                         z = average_depth
 
-                        # Transform to robot coordinates
+                        # Transform from camera coordinates to robot/world coordinates using extrinsics
                         robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
                         robot_x, robot_y, robot_z = robot_coordinates[:3]
 
@@ -140,11 +133,16 @@ def process_camera(pipeline, align, model, idx):
         # Store the annotated frame and 3D coordinates for the camera
         annotated_frames[idx] = annotated_frame
         robot_coordinates_list[idx] = (x_robot, y_robot, z_robot, object_ids)
+        
+        if stop_threads:
+            break
 
 # Create and start a thread for each camera
 threads = []
-for i, (pipeline, align, model) in enumerate(zip(pipelines, aligns, models)):
-    thread = threading.Thread(target=process_camera, args=(pipeline, align, model, i))
+stop_threads = False
+for i, (pipeline, align, profile, model, serial) in enumerate(zip(pipelines, aligns, profiles, models, serials)):
+    camera_transform = np.array(extrinsics.get(serial, np.eye(4)))  # Default to identity matrix if not provided
+    thread = threading.Thread(target=process_camera, args=(pipeline, align, profile, model, i, camera_transform))
     threads.append(thread)
     thread.start()
 
@@ -152,9 +150,9 @@ for i, (pipeline, align, model) in enumerate(zip(pipelines, aligns, models)):
 try:
     while True:
         # Combine the annotated frames side by side (when available)
-        if all(frame is not None for frame in annotated_frames):
+        if all(frame is not None for frame in annotated_frames) and draw:
             combined_frame = np.hstack(annotated_frames)
-            cv2.imshow("YOLOv9 Detection with Depth and Masks", combined_frame)
+            cv2.imshow("YOLO Detection with Depth and Masks", combined_frame)
 
         # Update the 3D plot with robot coordinates from each camera
         if plot and all(coords is not None for coords in robot_coordinates_list):
@@ -172,6 +170,9 @@ try:
             break
 finally:
     # Stop threads and release resources
+    stop_threads = True
+    for thread in threads:
+        thread.join()
     for pipeline in pipelines:
         pipeline.stop()
     cv2.destroyAllWindows()

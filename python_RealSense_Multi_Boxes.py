@@ -9,23 +9,16 @@ import threading
 draw = True
 plot = False  # Set to True if you want to plot the 3D positions
 
-# Initialize RealSense pipeline for cameras
+# Load serials and extrinsics from CAMERAS.json
 with open('CAMERAS.json', 'r') as f:
-    pipelines, aligns = initialize_cameras(serials=json.load(f).get("serials", []), resolution=[640, 360])
+    camera_data = json.load(f)
+    serials = camera_data["serials"]
+    extrinsics = camera_data.get("extrinsics", {})
 
-# Define camera intrinsic parameters (adjust based on your calibration)
-fx, fy = 640, 640  # Focal lengths in pixels
-cx, cy = 640, 360  # Principal point in pixels (center)
+# Initialize RealSense pipeline for cameras
+pipelines, aligns, profiles = initialize_cameras(serials=serials, resolution=[640, 360])
 
-# Define camera extrinsic parameters (transformation matrix from camera frame to robot frame)
-camera_transform = np.array([
-    [1, 0, 0, 0],  # No rotation on X, no translation on X
-    [0, 1, 0, 0],  # No rotation on Y, no translation on Y
-    [0, 0, 1, 0],  # No rotation on Z, no translation on Z
-    [0, 0, 0, 1]   # Homogeneous coordinate
-], dtype=np.float32)
-
-# Initialize a YOLOv9 model for each camera
+# Initialize a YOLO model for each camera
 models = [YOLO("yolov10x.pt") for _ in range(len(pipelines))]
 
 # Store annotated frames and 3D coordinates for each camera
@@ -33,8 +26,9 @@ annotated_frames = [None] * len(pipelines)
 robot_coordinates_list = [None] * len(pipelines)
 
 # Define the camera processing function for threading
-def process_camera(pipeline, align, model, idx):
-    global annotated_frames, robot_coordinates_list
+def process_camera(pipeline, align, profile, model, idx, camera_transform):
+    global annotated_frames, robot_coordinates_list, stop_threads
+    intrinsics = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
 
     while True:
         # Wait for frames
@@ -53,12 +47,14 @@ def process_camera(pipeline, align, model, idx):
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
 
-        # Run YOLOv9 tracking on the color image
+        # Run YOLO tracking on the color image
         results = model.track(color_image, persist=True)
 
         # Visualize the results on the frame (draw bounding boxes and masks)
         if draw:
             annotated_frame = results[0].plot(boxes=True, masks=False)
+        else:
+            annotated_frame = color_image.copy()  # Ensure annotated_frame is always defined
 
         # Lists to store 3D coordinates and object IDs
         x_robot, y_robot, z_robot, object_ids = [], [], [], []
@@ -85,12 +81,12 @@ def process_camera(pipeline, align, model, idx):
                     # Extract depth value at the center of the bounding box
                     depth_at_center = depth_image[center_y, center_x] * depth_frame.get_units()
 
-                    # Convert depth and pixel coordinates to 3D robot coordinates
-                    x = (center_x - cx) * depth_at_center / fx
-                    y = -(center_y - cy) * depth_at_center / fy
+                    # Convert depth and pixel coordinates to 3D coordinates
+                    x = (center_x - intrinsics.ppx) * depth_at_center / intrinsics.fx
+                    y = (center_y - intrinsics.ppy) * depth_at_center / intrinsics.fy
                     z = depth_at_center
 
-                    # Transform to robot coordinates
+                    # Transform to robot coordinates using the camera extrinsic matrix
                     robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
                     robot_x, robot_y, robot_z = robot_coordinates[:3]
 
@@ -113,7 +109,7 @@ def process_camera(pipeline, align, model, idx):
                             text_size, _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
                             text_width, text_height = text_size
                             text_x = center_x - text_width // 2
-                            text_y = center_y + (j*3 + 1) * text_height // 2
+                            text_y = center_y + (j * 3 + 1) * text_height // 2
 
                             # Use cv2.putText to add robot position information at the center of the bounding box
                             cv2.putText(annotated_frame, line, (text_x, text_y), 
@@ -123,10 +119,15 @@ def process_camera(pipeline, align, model, idx):
         annotated_frames[idx] = annotated_frame
         robot_coordinates_list[idx] = (x_robot, y_robot, z_robot, object_ids)
 
-# Create and start a thread for each camera
+        if stop_threads:
+            break
+
+# Create and start a thread for each camera, applying the respective extrinsics
 threads = []
-for i, (pipeline, align, model) in enumerate(zip(pipelines, aligns, models)):
-    thread = threading.Thread(target=process_camera, args=(pipeline, align, model, i))
+stop_threads = False
+for i, (pipeline, align, profile, model, serial) in enumerate(zip(pipelines, aligns, profiles, models, serials)):
+    camera_transform = np.array(extrinsics.get(serial, np.eye(4)))  # Default to identity matrix if not provided
+    thread = threading.Thread(target=process_camera, args=(pipeline, align, profile, model, i, camera_transform))
     threads.append(thread)
     thread.start()
 
@@ -134,9 +135,9 @@ for i, (pipeline, align, model) in enumerate(zip(pipelines, aligns, models)):
 try:
     while True:
         # Combine the annotated frames side by side (when available)
-        if all(frame is not None for frame in annotated_frames):
+        if all(frame is not None for frame in annotated_frames) and draw:
             combined_frame = np.hstack(annotated_frames)
-            cv2.imshow("YOLOv9 Detection with Depth and Masks", combined_frame)
+            cv2.imshow("YOLO Detection with Depth and Boundingboxes", combined_frame)
 
         # Update the 3D plot with robot coordinates from each camera
         if plot and all(coords is not None for coords in robot_coordinates_list):
@@ -154,6 +155,7 @@ try:
             break
 finally:
     # Stop threads and release resources
+    stop_threads = True
     for thread in threads:
         thread.join()
     for pipeline in pipelines:

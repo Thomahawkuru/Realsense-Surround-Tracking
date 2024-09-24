@@ -91,6 +91,7 @@ def initialize_cameras(serials, resolution=(640*2, 360*2), fps=30):
     print(serials)
     pipelines = []
     aligns = []
+    profiles = []
     
     for serial in serials:
         pipeline = rs.pipeline()
@@ -99,13 +100,13 @@ def initialize_cameras(serials, resolution=(640*2, 360*2), fps=30):
         config.enable_stream(rs.stream.depth, *resolution, rs.format.z16, fps)
         config.enable_stream(rs.stream.color, *resolution, rs.format.bgr8, fps)
         
-        pipeline.start(config)
+        profiles.append(pipeline.start(config))
         align = rs.align(rs.stream.color)
         
         pipelines.append(pipeline)
         aligns.append(align)
     
-    return pipelines, aligns
+    return pipelines, aligns, profiles
 
 def run_tracker_in_thread(model_name, image):
     """

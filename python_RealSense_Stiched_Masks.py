@@ -15,7 +15,7 @@ model = YOLO("yolov9e-seg.pt")
 
 # Initialize RealSense pipeline for cameras
 with open('CAMERAS.json', 'r') as f:
-    pipelines, aligns = initialize_cameras(serials=json.load(f).get("serials", []))
+    pipelines, aligns, profiles = initialize_cameras(serials=json.load(f).get("serials", []))
 
 # Define camera intrinsic parameters (adjust based on your calibration)
 fx, fy = 632, 630  # Focal lengths in pixels
