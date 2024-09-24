@@ -8,7 +8,7 @@ from FUNCTIONS import *  # Assuming this contains your custom functions
 
 draw = True
 plot = True  # Set to True if you want to plot the 3D positions
-detection_type = 'box'  # 'box' or 'mask'
+detection_type = 'mask'  # 'box' or 'mask'
 
 # Load serials and extrinsics from CAMERAS.json
 with open('CAMERAS.json', 'r') as f:
@@ -39,9 +39,12 @@ if plot:
     ax.set_xlim([-1, 1])
     ax.set_ylim([0, 5])
     ax.set_zlim([-1, 1])
-
+    
+    scatters = []
+    colors = ['r', 'b', 'g', 'y', 'k']
     # Create scatter plot and text objects that can be updated
-    scatter = ax.scatter([], [], [], c='r', marker='o')
+    for i in range(len(serials)):
+        scatters.append(ax.scatter([], [], [], c=colors[i], marker='o'))
 
 # Define the camera processing function for threading
 def process_camera(pipeline, align, profile, model, idx, camera_transform):
@@ -217,14 +220,10 @@ try:
 
         # Update the 3D plot with robot coordinates from each camera
         if plot and all(coords is not None for coords in robot_coordinates_list):
-            all_x_robot, all_y_robot, all_z_robot, all_object_ids = [], [], [], []
-            for coords in robot_coordinates_list:
-                x_robot, y_robot, z_robot, object_ids = coords
-                all_x_robot.extend(x_robot)
-                all_y_robot.extend(y_robot)
-                all_z_robot.extend(z_robot)
-                all_object_ids.extend(object_ids)
-            update_plot(scatter, ax, all_x_robot, all_y_robot, all_z_robot, [])
+            for (scatter, coords) in zip(scatters, robot_coordinates_list):
+                scatter._offsets3d = coords[:3]
+                plt.draw()
+                plt.pause(0.001)
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
