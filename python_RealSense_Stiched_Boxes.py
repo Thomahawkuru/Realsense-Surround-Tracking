@@ -8,7 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from FUNCTIONS import *
 
 draw = True
-plot = False  # Set to True if you want to plot the 3D positions
+plot = True  # Set to True if you want to plot the 3D positions
 
 # Initialize YOLOv9 segmentation model
 model = YOLO("yolov10x.pt")
@@ -31,6 +31,19 @@ camera_to_robot_transform = np.array([
 
 # Function to crop an image
 crop_per_side_pixels = 200
+
+if plot:
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Z')
+    ax.set_zlabel('Y')
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([0, 5])
+    ax.set_zlim([-1, 1])
+
+    # Create scatter plot and text objects that can be updated
+    scatter = ax.scatter([], [], [], c='r', marker='o')
 
 # Processing loop
 try:
@@ -138,10 +151,11 @@ try:
 
         # Update the 3D plot
         if plot:
-            update_plot(x_robot, y_robot, z_robot, object_ids)
+            update_plot(scatter, ax, x_robot, y_robot, z_robot, [])
 
         # Display the annotated frame with bounding boxes and masks
-        cv2.imshow("YOLOv9 Detection with Depth and Masks", annotated_frame)
+        if draw:
+            cv2.imshow("YOLOv9 Detection with Depth and Masks", annotated_frame)
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):

@@ -6,7 +6,7 @@ from ultralytics import YOLO
 import threading
 from FUNCTIONS import *
 
-draw = False
+draw = True
 plot = True  # Set to True if you want to plot the 3D positions
 
 # Load serials and extrinsics from CAMERAS.json
@@ -146,6 +146,20 @@ for i, (pipeline, align, profile, model, serial) in enumerate(zip(pipelines, ali
     threads.append(thread)
     thread.start()
 
+# Initialize matplotlib for 3D plotting outside of the function
+if plot:
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Z')
+    ax.set_zlabel('Y')
+    ax.set_xlim([-1, 1])
+    ax.set_ylim([0, 5])
+    ax.set_zlim([-1, 1])
+
+    # Create scatter plot and text objects that can be updated
+    scatter = ax.scatter([], [], [], c='r', marker='o')
+
 # Display the combined results
 try:
     while True:
@@ -163,7 +177,7 @@ try:
                 all_y_robot.extend(y_robot)
                 all_z_robot.extend(z_robot)
                 all_object_ids.extend(object_ids)
-            update_plot(all_x_robot, all_y_robot, all_z_robot, all_object_ids)
+            update_plot(scatter, ax, all_x_robot, all_y_robot, all_z_robot, [])
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):

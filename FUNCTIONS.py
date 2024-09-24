@@ -51,22 +51,9 @@ def remove_outliers(data):
     upper_bound = q3 + 1.5 * iqr
     return data[(data >= lower_bound) & (data <= upper_bound)]
 
-def update_plot(x, z, y, ids):
-    # Initialize matplotlib for 3D plotting
-    fig = plt.figure(1)
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Clear previous plot
-    ax.cla()
-    ax.set_xlabel('X')
-    ax.set_ylabel('Z')
-    ax.set_zlabel('Y')
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([0, 5])
-    ax.set_zlim([-1, 1])
-    
+def update_plot(scatter, ax, x, z, y, ids):   
     # Update scatter plot
-    scatter = ax.scatter(x, y, z, c='r', marker='o')
+    scatter._offsets3d = (x, y, z)
     for i, txt in enumerate(ids):
         ax.text(x[i], y[i], z[i], txt, fontsize=8, color='blue')
     
