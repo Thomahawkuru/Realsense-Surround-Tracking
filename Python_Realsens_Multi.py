@@ -6,91 +6,91 @@ from ultralytics import YOLO
 import threading
 from FUNCTIONS import *  # Assuming this contains your custom functions
 
-draw = True
-plot = True  # Set to True if you want to plot the 3D positions
-detection_type = 'mask'  # 'box' or 'mask'
+draw = True  # Set to True if you want to draw bounding boxes or masks on the frames
+plot = True  # Set to True if you want to plot the 3D positions of detected objects
+detection_type = 'mask'  # Specify 'box' for bounding boxes or 'mask' for segmentation masks
 
-# Load serials and extrinsics from CAMERAS.json
+# Load camera serials and extrinsics from CAMERAS.json
 with open('CAMERAS.json', 'r') as f:
     camera_data = json.load(f)
-    serials = camera_data["serials"]
-    extrinsics = camera_data.get("extrinsics", {})
+    serials = camera_data["serials"]  # List of camera serial numbers
+    extrinsics = camera_data.get("extrinsics", {})  # Camera extrinsic parameters
 
-# Initialize RealSense pipeline for cameras
+# Initialize RealSense pipeline for each camera
 pipelines, aligns, profiles = initialize_cameras(serials=serials, resolution=[640, 360])
 
-# Initialize a YOLO model based on the specified type
+# Initialize YOLO models based on the specified detection type
 if detection_type == 'box':
-    models = [YOLO("yolov10x.pt") for _ in range(len(pipelines))]
+    models = [YOLO("yolov10x.pt") for _ in range(len(pipelines))]  # Load YOLO model for bounding box detection
 elif detection_type == 'mask':
-    models = [YOLO("yolov9e-seg.pt") for _ in range(len(pipelines))]
+    models = [YOLO("yolov9e-seg.pt") for _ in range(len(pipelines))]  # Load YOLO model for mask segmentation
 
-# Store annotated frames and 3D coordinates for each camera
+# Prepare lists to store annotated frames and 3D coordinates for each camera
 annotated_frames = [None] * len(pipelines)
 robot_coordinates_list = [None] * len(pipelines)
 
-# Initialize matplotlib for 3D plotting outside of the function
+# Initialize matplotlib for 3D plotting, if enabled
 if plot:
-    fig = plt.figure(figsize=(10,10))
-    ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')  # Create 3D subplot
     ax.set_xlabel('X')
     ax.set_ylabel('Z')
     ax.set_zlabel('Y')
-    ax.set_xlim([-1, 1])
-    ax.set_ylim([0, 5])
-    ax.set_zlim([-1, 1])
+    ax.set_xlim([-1, 1])  # Set limits for X-axis
+    ax.set_ylim([0, 5])   # Set limits for Y-axis
+    ax.set_zlim([-1, 1])  # Set limits for Z-axis
     
-    scatters = []
-    colors = ['r', 'b', 'g', 'y', 'k']
-    # Create scatter plot and text objects that can be updated
+    scatters = []  # List to hold scatter plot objects
+    colors = ['r', 'b', 'g', 'y', 'k']  # Color options for different cameras
+    # Create scatter plot objects that can be updated later
     for i in range(len(serials)):
         scatters.append(ax.scatter([], [], [], c=colors[i], marker='o'))
 
-# Define the camera processing function for threading
+# Define the camera processing function for threaded execution
 def process_camera(pipeline, align, profile, model, idx, camera_transform):
     global annotated_frames, robot_coordinates_list, stop_threads
-    intrinsics = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
+    intrinsics = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()  # Get camera intrinsics
 
     while True:
-        # Wait for frames
+        # Wait for frames from the camera
         frame = pipeline.wait_for_frames()
 
-        # Align depth to color
+        # Align depth frame to color frame
         aligned_frame = align.process(frame)
-        depth_frame = aligned_frame.get_depth_frame()
-        color_frame = aligned_frame.get_color_frame()
+        depth_frame = aligned_frame.get_depth_frame()  # Get depth frame
+        color_frame = aligned_frame.get_color_frame()  # Get color frame
 
         # Check if any frames are missing
         if not depth_frame or not color_frame:
-            continue
+            continue  # Skip this iteration if frames are not available
 
-        # Convert frames to numpy arrays
+        # Convert frames to numpy arrays for processing
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
 
         # Run YOLO tracking on the color image
         results = model.track(color_image, persist=True)
 
-        # Visualize the results on the frame
+        # Visualize the results on the annotated frame
         if draw:
             if detection_type == 'box':
-                annotated_frame = results[0].plot(boxes=True, masks=False)
+                annotated_frame = results[0].plot(boxes=True, masks=False)  # Draw bounding boxes
             elif detection_type == 'mask':
-                annotated_frame = results[0].plot(boxes=False, masks=True)
+                annotated_frame = results[0].plot(boxes=False, masks=True)  # Draw segmentation masks
         else:
-            annotated_frame = color_image.copy()  # Ensure annotated_frame is always defined
+            annotated_frame = color_image.copy()  # Use the original color image if not drawing
 
         # Lists to store 3D coordinates and object IDs
         x_robot, y_robot, z_robot, object_ids = [], [], [], []
 
-        # Loop through each detected object
+        # Loop through each detected object in the results
         for result in results:
             if detection_type == 'box':
                 boxes = result.boxes
                 classes = result.boxes.cls
                 names = result.names
                 if boxes is not None:
-                    ids = boxes.id.tolist() if boxes.id is not None else []
+                    ids = boxes.id.tolist() if boxes.id is not None else []  # Get object IDs
                     for i, (box, obj_id, obj_class) in enumerate(zip(boxes.xyxy, ids, classes)):
                         obj_name = names[obj_class.item()]
 
@@ -113,12 +113,10 @@ def process_camera(pipeline, align, profile, model, idx, camera_transform):
                         robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
                         robot_x, robot_y, robot_z = robot_coordinates[:3]
 
-                        # Append to lists
+                        # Append robot coordinates and object ID to lists
                         x_robot.append(robot_x)
                         y_robot.append(robot_y)
                         z_robot.append(robot_z)
-
-                        # Append object ID and name to the list
                         object_ids.append(f"ID {obj_id}")
 
                         if draw:
@@ -133,19 +131,19 @@ def process_camera(pipeline, align, profile, model, idx, camera_transform):
                                 cv2.putText(annotated_frame, line, (text_x, text_y), 
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
-            elif detection_type == 'mask': # For segmentation
+            elif detection_type == 'mask':  # For segmentation
                 if result.masks:
-                    masks = result.masks.data.cpu().numpy()
+                    masks = result.masks.data.cpu().numpy()  # Extract mask data
                     boxes = result.boxes
                     classes = result.boxes.cls
                     names = result.names
 
                     if boxes is not None:
-                        ids = boxes.id.tolist() if boxes.id is not None else []
+                        ids = boxes.id.tolist() if boxes.id is not None else []  # Get object IDs
                         for i, (mask, obj_id, obj_class) in enumerate(zip(masks, ids, classes)):
                             obj_name = names[obj_class.item()]
 
-                            # Get the mask indices
+                            # Get the mask indices for the segmented object
                             mask_indices = np.where(mask == 1)
 
                             # Clip indices to avoid out-of-bounds errors
@@ -170,16 +168,14 @@ def process_camera(pipeline, align, profile, model, idx, camera_transform):
                             y = (center_y - intrinsics.ppy) * average_depth / intrinsics.fy
                             z = average_depth
 
-                            # Transform to robot coordinates
+                            # Transform to robot coordinates using the camera extrinsic matrix
                             robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
                             robot_x, robot_y, robot_z = robot_coordinates[:3]
 
-                            # Append to lists
+                            # Append robot coordinates and object ID to lists
                             x_robot.append(robot_x)
-                            y_robot.append(-robot_y)
+                            y_robot.append(-robot_y)  # Negate y-coordinate for consistency
                             z_robot.append(robot_z)
-
-                            # Append object ID and name to the list
                             object_ids.append(f"ID {obj_id}")
 
                             if draw:
@@ -199,40 +195,40 @@ def process_camera(pipeline, align, profile, model, idx, camera_transform):
         robot_coordinates_list[idx] = (x_robot, y_robot, z_robot, object_ids)
 
         if stop_threads:
-            break
+            break  # Exit the loop if stop signal is set
 
 # Create and start a thread for each camera
 threads = []
 stop_threads = False
 for i, (pipeline, align, profile, model, serial) in enumerate(zip(pipelines, aligns, profiles, models, serials)):
-    camera_transform = np.array(extrinsics.get(serial, np.eye(4)))  # Default to identity matrix if not provided
+    camera_transform = np.array(extrinsics.get(serial, np.eye(4)))  # Default to identity matrix if extrinsics not provided
     thread = threading.Thread(target=process_camera, args=(pipeline, align, profile, model, i, camera_transform))
-    thread.start()
-    threads.append(thread)
+    thread.start()  # Start the camera processing thread
+    threads.append(thread)  # Append thread to the list
 
-# Display the combined results
+# Display the combined results from all cameras
 try:
     while True:
         # Combine the annotated frames side by side (when available)
         if all(frame is not None for frame in annotated_frames) and draw:
-            combined_frame = np.hstack(annotated_frames)
+            combined_frame = np.hstack(annotated_frames)  # Horizontally stack annotated frames
             cv2.imshow("YOLO Detection with Depth and Masks", combined_frame)
 
         # Update the 3D plot with robot coordinates from each camera
         if plot and all(coords is not None for coords in robot_coordinates_list):
             for (scatter, coords) in zip(scatters, robot_coordinates_list):
-                scatter._offsets3d = coords[:3]
-                plt.draw()
-                plt.pause(0.001)
+                scatter._offsets3d = coords[:3]  # Update scatter plot data with robot coordinates
+                plt.draw()  # Redraw the plot
+                plt.pause(0.001)  # Pause to update the plot
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 finally:
-    # Stop threads and release resources
-    stop_threads = True
+    # Stop threads and release resources before exiting
+    stop_threads = True  # Signal threads to stop
     for thread in threads:
-        thread.join()
+        thread.join()  # Wait for all threads to finish
     for pipeline in pipelines:
-        pipeline.stop()
-    cv2.destroyAllWindows()
+        pipeline.stop()  # Stop the camera pipelines
+    cv2.destroyAllWindows()  # Close all OpenCV windows
