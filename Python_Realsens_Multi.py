@@ -4,7 +4,7 @@ import json
 import pyrealsense2 as rs
 from ultralytics import YOLO
 import threading
-from FUNCTIONS import *  # Assuming this contains your custom functions
+import matplotlib.pyplot as plt
 
 class MultiDetection:
     def __init__(self, camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=False, plot=False):
@@ -21,7 +21,7 @@ class MultiDetection:
         self.extrinsics = camera_data.get("extrinsics", {})
 
         # Initialize RealSense pipeline
-        self.pipelines, self.aligns, self.profiles = initialize_cameras(serials=self.serials, resolution=[640, 360], fps=15)
+        self.pipelines, self.aligns, self.profiles = self._initialize_cameras(resolution=[640, 360], fps=15)
 
         # Initialize YOLO models
         self.models = self._initialize_yolo_models()
@@ -33,6 +33,27 @@ class MultiDetection:
         # Initialize 3D plotting, if enabled
         if self.plot:
             self._init_3d_plot()
+
+    def _initialize_cameras(self, resolution=(640*2, 360*2), fps=30):
+        """ Initializes RealSense camera pipelines and aligns them for multi-camera setups. """
+        pipelines = []
+        aligns = []
+        profiles = []
+        
+        for serial in self.serials:
+            pipeline = rs.pipeline()
+            config = rs.config()
+            config.enable_device(serial)
+            config.enable_stream(rs.stream.depth, *resolution, rs.format.z16, fps)
+            config.enable_stream(rs.stream.color, *resolution, rs.format.bgr8, fps)
+            
+            profiles.append(pipeline.start(config))
+            align = rs.align(rs.stream.color)
+            
+            pipelines.append(pipeline)
+            aligns.append(align)
+        
+        return pipelines, aligns, profiles
 
     def _initialize_yolo_models(self):
         """Initialize YOLO models based on the detection type."""
