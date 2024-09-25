@@ -2,6 +2,7 @@ import time
 import numpy as np
 from Python_Realsense_Multi import MultiDetection  # Assuming your class is saved in Python_Realsense_Multi.py
 import threading
+import cv2
 
 def calculate_average_position(detections):
     """Calculate the average position of detections."""
@@ -124,7 +125,11 @@ def merge_detection(threshold):
                     pos = det['positions'][0]
                     print(f"Detected {det['object_name']} (ID: {det['object_id']}) at position {pos} from camera {det['cameras']}")
 
-            time.sleep(0.1)  # Pause to prevent flooding output
+            time.sleep(0.1)
+            
+            detector.show_combined_frames()
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
 
     finally:
         # Stop the detector to clean up

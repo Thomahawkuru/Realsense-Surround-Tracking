@@ -226,7 +226,7 @@ class MultiDetection:
         """Show and or Draw the detection results in plots and images."""
         try:
             while True:
-                self._show_combined_frames()
+                self.show_combined_frames()
                 self._update_3d_plot()
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -234,7 +234,7 @@ class MultiDetection:
         finally:
             self.stop()
     
-    def _show_combined_frames(self):
+    def show_combined_frames(self):
         """Combine and display annotated frames."""
         if self.show and all(frame is not None for frame in self.annotated_frames):
             try:
