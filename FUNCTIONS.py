@@ -73,7 +73,7 @@ def initialize_cameras(serials, resolution=(640*2, 360*2), fps=30):
         fps (int): Frames per second.
 
     Returns:
-        tuple: (pipelines, aligns, fx, fy, cx, cy, camera_to_robot_transform)
+        tuple: (pipelines, aligns, Profiles)
     """
     print(serials)
     pipelines = []

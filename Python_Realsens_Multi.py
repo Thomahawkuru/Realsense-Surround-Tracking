@@ -8,7 +8,7 @@ from FUNCTIONS import *  # Assuming this contains your custom functions
 
 draw = True  # Set to True if you want to draw bounding boxes or masks on the frames
 plot = True  # Set to True if you want to plot the 3D positions of detected objects
-detection_type = 'mask'  # Specify 'box' for bounding boxes or 'mask' for segmentation masks
+detection_type = 'box'  # Specify 'box' for bounding boxes or 'mask' for segmentation masks
 
 # Load camera serials and extrinsics from CAMERAS.json
 with open('CAMERAS.json', 'r') as f:
@@ -17,7 +17,7 @@ with open('CAMERAS.json', 'r') as f:
     extrinsics = camera_data.get("extrinsics", {})  # Camera extrinsic parameters
 
 # Initialize RealSense pipeline for each camera
-pipelines, aligns, profiles = initialize_cameras(serials=serials, resolution=[640, 360])
+pipelines, aligns, profiles = initialize_cameras(serials=serials, resolution=[640, 360], fps=30)
 
 # Initialize YOLO models based on the specified detection type
 if detection_type == 'box':
@@ -34,17 +34,21 @@ if plot:
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')  # Create 3D subplot
     ax.set_xlabel('X')
-    ax.set_ylabel('Z')
-    ax.set_zlabel('Y')
-    ax.set_xlim([-1, 1])  # Set limits for X-axis
-    ax.set_ylim([0, 5])   # Set limits for Y-axis
-    ax.set_zlim([-1, 1])  # Set limits for Z-axis
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_xlim([-3, 3])  # Set limits for X-axis
+    ax.set_ylim([-3, 3])   # Set limits for Y-axis
+    ax.set_zlim([-1, 2])  # Set limits for Z-axis
     
     scatters = []  # List to hold scatter plot objects
     colors = ['r', 'b', 'g', 'y', 'k']  # Color options for different cameras
+    labels = ['Camera 1', 'Camera 2', 'Camera 3', 'Camera 4', 'Camera 5']  # Labels for legend
     # Create scatter plot objects that can be updated later
     for i in range(len(serials)):
-        scatters.append(ax.scatter([], [], [], c=colors[i], marker='o'))
+        scatters.append(ax.scatter([], [], [], c=colors[i], marker='o', label=labels[i]))
+    
+    # Add legend to the plot
+    ax.legend(loc='upper right')
 
 # Define the camera processing function for threaded execution
 def process_camera(pipeline, align, profile, model, idx, camera_transform):
@@ -192,7 +196,7 @@ def process_camera(pipeline, align, profile, model, idx, camera_transform):
 
         # Store the annotated frame and 3D coordinates for the camera
         annotated_frames[idx] = annotated_frame
-        robot_coordinates_list[idx] = (x_robot, y_robot, z_robot, object_ids)
+        robot_coordinates_list[idx] = (x_robot, z_robot, y_robot, object_ids)
 
         if stop_threads:
             break  # Exit the loop if stop signal is set
