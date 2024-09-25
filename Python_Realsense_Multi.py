@@ -234,7 +234,10 @@ class MultiDetection:
     def _show_combined_frames(self):
         """Combine and display annotated frames."""
         if self.show and all(frame is not None for frame in self.annotated_frames):
-            reordered_frames = self.annotated_frames[3:5] + self.annotated_frames[0:3]
+            try:
+                reordered_frames = self.annotated_frames[3:5] + self.annotated_frames[0:3]
+            except IndexError:  # Only catch IndexErrors
+                reordered_frames = self.annotated_frames
             combined_frame = np.hstack(reordered_frames)
             cv2.imshow("YOLO Detection with Depth and Masks", combined_frame)
 
