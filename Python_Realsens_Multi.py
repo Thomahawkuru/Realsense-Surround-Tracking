@@ -6,233 +6,174 @@ from ultralytics import YOLO
 import threading
 from FUNCTIONS import *  # Assuming this contains your custom functions
 
-draw = True  # Set to True if you want to draw bounding boxes or masks on the frames
-plot = True  # Set to True if you want to plot the 3D positions of detected objects
-detection_type = 'box'  # Specify 'box' for bounding boxes or 'mask' for segmentation masks
+class MultiDetection:
+    def __init__(self, camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=False, plot=False):
+        self.show = show
+        self.draw = draw
+        self.plot = plot
+        self.detection_type = detection_type
+        self.stop_threads = False
 
-# Load camera serials and extrinsics from CAMERAS.json
-with open('CAMERAS.json', 'r') as f:
-    camera_data = json.load(f)
-    serials = camera_data["serials"]  # List of camera serial numbers
-    extrinsics = camera_data.get("extrinsics", {})  # Camera extrinsic parameters
+        # Load camera serials and extrinsics
+        with open(camera_config_path, 'r') as f:
+            camera_data = json.load(f)
+        self.serials = camera_data["serials"]
+        self.extrinsics = camera_data.get("extrinsics", {})
 
-# Initialize RealSense pipeline for each camera
-pipelines, aligns, profiles = initialize_cameras(serials=serials, resolution=[640, 360], fps=30)
+        # Initialize RealSense pipeline
+        self.pipelines, self.aligns, self.profiles = initialize_cameras(serials=self.serials, resolution=[640, 360], fps=15)
 
-# Initialize YOLO models based on the specified detection type
-if detection_type == 'box':
-    models = [YOLO("yolov10x.pt") for _ in range(len(pipelines))]  # Load YOLO model for bounding box detection
-elif detection_type == 'mask':
-    models = [YOLO("yolov9e-seg.pt") for _ in range(len(pipelines))]  # Load YOLO model for mask segmentation
+        # Initialize YOLO models
+        self.models = self._initialize_yolo_models()
 
-# Prepare lists to store annotated frames and 3D coordinates for each camera
-annotated_frames = [None] * len(pipelines)
-robot_coordinates_list = [None] * len(pipelines)
+        # Annotated frames and detection list
+        self.annotated_frames = [None] * len(self.pipelines)
+        self.detection_list = [None] * len(self.pipelines)
 
-# Initialize matplotlib for 3D plotting, if enabled
-if plot:
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')  # Create 3D subplot
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_xlim([-3, 3])  # Set limits for X-axis
-    ax.set_ylim([-3, 3])   # Set limits for Y-axis
-    ax.set_zlim([-1, 2])  # Set limits for Z-axis
-    
-    scatters = []  # List to hold scatter plot objects
-    colors = ['r', 'b', 'g', 'y', 'k']  # Color options for different cameras
-    labels = ['Camera 1', 'Camera 2', 'Camera 3', 'Camera 4', 'Camera 5']  # Labels for legend
-    # Create scatter plot objects that can be updated later
-    for i in range(len(serials)):
-        scatters.append(ax.scatter([], [], [], c=colors[i], marker='o', label=labels[i]))
-    
-    # Add legend to the plot
-    ax.legend(loc='upper right')
+        # Initialize 3D plotting, if enabled
+        if self.plot:
+            self._init_3d_plot()
 
-# Define the camera processing function for threaded execution
-def process_camera(pipeline, align, profile, model, idx, camera_transform):
-    global annotated_frames, robot_coordinates_list, stop_threads
-    intrinsics = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()  # Get camera intrinsics
+    def _initialize_yolo_models(self):
+        """Initialize YOLO models based on the detection type."""
+        if self.detection_type == 'box':
+            return [YOLO("yolov10x.pt") for _ in range(len(self.pipelines))]
+        elif self.detection_type == 'mask':
+            return [YOLO("yolov9e-seg.pt") for _ in range(len(self.pipelines))]
 
-    while True:
-        # Wait for frames from the camera
-        frame = pipeline.wait_for_frames()
+    def _init_3d_plot(self):
+        """Initialize 3D plotting with matplotlib."""
+        import matplotlib.pyplot as plt
+        self.fig = plt.figure(figsize=(10, 10))
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        self.ax.set_xlabel('X')
+        self.ax.set_ylabel('Y')
+        self.ax.set_zlabel('Z')
+        self.ax.set_xlim([-3, 3])
+        self.ax.set_ylim([-3, 3])
+        self.ax.set_zlim([-1, 2])
 
-        # Align depth frame to color frame
-        aligned_frame = align.process(frame)
-        depth_frame = aligned_frame.get_depth_frame()  # Get depth frame
-        color_frame = aligned_frame.get_color_frame()  # Get color frame
+        self.scatters = []
+        colors = ['r', 'b', 'g', 'y', 'k']
+        labels = [f'Camera {i + 1}' for i in range(len(self.serials))]
 
-        # Check if any frames are missing
-        if not depth_frame or not color_frame:
-            continue  # Skip this iteration if frames are not available
+        for i in range(len(self.serials)):
+            self.scatters.append(self.ax.scatter([], [], [], c=colors[i], marker='o', label=labels[i]))
 
-        # Convert frames to numpy arrays for processing
-        depth_image = np.asanyarray(depth_frame.get_data())
-        color_image = np.asanyarray(color_frame.get_data())
+        self.ax.legend(loc='upper right')
 
-        # Run YOLO tracking on the color image
-        results = model.track(color_image, persist=True)
+    def process_camera(self, pipeline, align, profile, model, idx, camera_transform):
+        """Camera processing function for threading."""
+        intrinsics = profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
 
-        # Visualize the results on the annotated frame
-        if draw:
-            if detection_type == 'box':
-                annotated_frame = results[0].plot(boxes=True, masks=False)  # Draw bounding boxes
-            elif detection_type == 'mask':
-                annotated_frame = results[0].plot(boxes=False, masks=True)  # Draw segmentation masks
-        else:
-            annotated_frame = color_image.copy()  # Use the original color image if not drawing
+        while not self.stop_threads:
+            # Get frames
+            frame = pipeline.wait_for_frames()
+            aligned_frame = align.process(frame)
+            depth_frame = aligned_frame.get_depth_frame()
+            color_frame = aligned_frame.get_color_frame()
 
-        # Lists to store 3D coordinates and object IDs
-        x_robot, y_robot, z_robot, object_ids = [], [], [], []
+            if not depth_frame or not color_frame:
+                continue
 
-        # Loop through each detected object in the results
+            depth_image = np.asanyarray(depth_frame.get_data())
+            color_image = np.asanyarray(color_frame.get_data())
+
+            # Run YOLO tracking
+            results = model.track(color_image, persist=True)
+
+            # Visualization
+            if self.show:
+                if self.detection_type == 'box':
+                    annotated_frame = results[0].plot(boxes=True, masks=False)
+                elif self.detection_type == 'mask':
+                    annotated_frame = results[0].plot(boxes=False, masks=True)
+            else:
+                annotated_frame = color_image.copy()
+
+            x_robot, y_robot, z_robot, object_ids, object_names = self._process_results(results, depth_image, depth_frame, intrinsics, camera_transform)
+
+            self.annotated_frames[idx] = annotated_frame
+            self.detection_list[idx] = (x_robot, z_robot, y_robot, object_ids, object_names, idx + 1)
+
+    def _process_results(self, results, depth_image, depth_frame, intrinsics, camera_transform):
+        """Process YOLO results and compute 3D coordinates."""
+        x_robot, y_robot, z_robot, object_ids, object_names = [], [], [], [], []
+
         for result in results:
-            if detection_type == 'box':
+            if self.detection_type == 'box':
                 boxes = result.boxes
                 classes = result.boxes.cls
                 names = result.names
-                if boxes is not None:
-                    ids = boxes.id.tolist() if boxes.id is not None else []  # Get object IDs
-                    for i, (box, obj_id, obj_class) in enumerate(zip(boxes.xyxy, ids, classes)):
-                        obj_name = names[obj_class.item()]
+                ids = boxes.id.tolist() if boxes.id is not None else []
 
-                        # Extract the bounding box coordinates (x_min, y_min, x_max, y_max)
-                        x_min, y_min, x_max, y_max = map(int, box)
+                for i, (box, obj_id, obj_class) in enumerate(zip(boxes.xyxy, ids, classes)):
+                    obj_name = names[obj_class.item()]
+                    center_x = (box[0] + box[2]) // 2
+                    center_y = (box[1] + box[3]) // 2
+                    depth_at_center = depth_image[int(center_y), int(center_x)] * depth_frame.get_units()
 
-                        # Calculate the center of the bounding box
-                        center_x = (x_min + x_max) // 2
-                        center_y = (y_min + y_max) // 2
+                    x, y, z = self._calculate_3d_coordinates(center_x, center_y, depth_at_center, intrinsics)
+                    robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
+                    x_robot.append(robot_coordinates[0])
+                    y_robot.append(robot_coordinates[1])
+                    z_robot.append(robot_coordinates[2])
+                    object_ids.append(f"ID {obj_id}")
+                    object_names.append(obj_name)
 
-                        # Extract depth value at the center of the bounding box
-                        depth_at_center = depth_image[center_y, center_x] * depth_frame.get_units()
+        return x_robot, y_robot, z_robot, object_ids, object_names
 
-                        # Convert depth and pixel coordinates to 3D coordinates
-                        x = (center_x - intrinsics.ppx) * depth_at_center / intrinsics.fx
-                        y = (center_y - intrinsics.ppy) * depth_at_center / intrinsics.fy
-                        z = depth_at_center
+    def _calculate_3d_coordinates(self, center_x, center_y, depth, intrinsics):
+        """Convert pixel coordinates and depth to 3D coordinates."""
+        x = (center_x - intrinsics.ppx) * depth / intrinsics.fx
+        y = (center_y - intrinsics.ppy) * depth / intrinsics.fy
+        z = depth
+        return x, y, z
 
-                        # Transform to robot coordinates using the camera extrinsic matrix
-                        robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
-                        robot_x, robot_y, robot_z = robot_coordinates[:3]
+    def start(self):
+        """Start YOLO detection with threading for each camera."""
+        self.threads = []
+        for i, (pipeline, align, profile, model, serial) in enumerate(zip(self.pipelines, self.aligns, self.profiles, self.models, self.serials)):
+            camera_transform = np.array(self.extrinsics.get(serial, np.eye(4)))
+            thread = threading.Thread(target=self.process_camera, args=(pipeline, align, profile, model, i, camera_transform))
+            thread.start()
+            self.threads.append(thread)
 
-                        # Append robot coordinates and object ID to lists
-                        x_robot.append(robot_x)
-                        y_robot.append(robot_y)
-                        z_robot.append(robot_z)
-                        object_ids.append(f"ID {obj_id}")
+        try:
+            while True:
+                self._show_combined_frames()
+                self._update_3d_plot()
 
-                        if draw:
-                            # Annotate the frame with the object's robot position
-                            label = f"ID {obj_id} ({obj_name}):\n({robot_x:.2f}, {robot_y:.2f}, {robot_z:.2f})"
-                            lines = label.split('\n')
-                            for j, line in enumerate(lines):
-                                text_size, _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                                text_width, text_height = text_size
-                                text_x = center_x - text_width // 2
-                                text_y = center_y + (j * 3 + 1) * text_height // 2
-                                cv2.putText(annotated_frame, line, (text_x, text_y), 
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+        finally:
+            self.stop()
 
-            elif detection_type == 'mask':  # For segmentation
-                if result.masks:
-                    masks = result.masks.data.cpu().numpy()  # Extract mask data
-                    boxes = result.boxes
-                    classes = result.boxes.cls
-                    names = result.names
-
-                    if boxes is not None:
-                        ids = boxes.id.tolist() if boxes.id is not None else []  # Get object IDs
-                        for i, (mask, obj_id, obj_class) in enumerate(zip(masks, ids, classes)):
-                            obj_name = names[obj_class.item()]
-
-                            # Get the mask indices for the segmented object
-                            mask_indices = np.where(mask == 1)
-
-                            # Clip indices to avoid out-of-bounds errors
-                            mask_indices = (np.clip(mask_indices[0], 0, depth_image.shape[0] - 1),
-                                            np.clip(mask_indices[1], 0, depth_image.shape[1] - 1))
-
-                            # Extract depth values for the object using the mask
-                            object_depth_values = depth_image[mask_indices] * depth_frame.get_units()
-
-                            # Calculate the average depth of the object
-                            average_depth = np.mean(object_depth_values) if object_depth_values.size > 0 else 0
-
-                            # Calculate the centroid of the mask
-                            if mask_indices[0].size > 0 and mask_indices[1].size > 0:
-                                center_x = int(np.mean(mask_indices[1]))  # X coordinate (columns)
-                                center_y = int(np.mean(mask_indices[0]))  # Y coordinate (rows)
-                            else:
-                                center_x, center_y = 0, 0
-
-                            # Convert depth and pixel coordinates to 3D coordinates
-                            x = (center_x - intrinsics.ppx) * average_depth / intrinsics.fx
-                            y = (center_y - intrinsics.ppy) * average_depth / intrinsics.fy
-                            z = average_depth
-
-                            # Transform to robot coordinates using the camera extrinsic matrix
-                            robot_coordinates = np.dot(camera_transform, np.array([x, y, z, 1]))
-                            robot_x, robot_y, robot_z = robot_coordinates[:3]
-
-                            # Append robot coordinates and object ID to lists
-                            x_robot.append(robot_x)
-                            y_robot.append(-robot_y)  # Negate y-coordinate for consistency
-                            z_robot.append(robot_z)
-                            object_ids.append(f"ID {obj_id}")
-
-                            if draw:
-                                # Annotate the frame with the object's robot position
-                                label = f"ID {obj_id} ({obj_name}):\n({robot_x:.2f}, {robot_y:.2f}, {robot_z:.2f})"
-                                lines = label.split('\n')
-                                for j, line in enumerate(lines):
-                                    text_size, _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
-                                    text_width, text_height = text_size
-                                    text_x = center_x - text_width // 2
-                                    text_y = center_y + (j * 3 + 1) * text_height // 2
-                                    cv2.putText(annotated_frame, line, (text_x, text_y), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-
-        # Store the annotated frame and 3D coordinates for the camera
-        annotated_frames[idx] = annotated_frame
-        robot_coordinates_list[idx] = (x_robot, z_robot, y_robot, object_ids)
-
-        if stop_threads:
-            break  # Exit the loop if stop signal is set
-
-# Create and start a thread for each camera
-threads = []
-stop_threads = False
-for i, (pipeline, align, profile, model, serial) in enumerate(zip(pipelines, aligns, profiles, models, serials)):
-    camera_transform = np.array(extrinsics.get(serial, np.eye(4)))  # Default to identity matrix if extrinsics not provided
-    thread = threading.Thread(target=process_camera, args=(pipeline, align, profile, model, i, camera_transform))
-    thread.start()  # Start the camera processing thread
-    threads.append(thread)  # Append thread to the list
-
-# Display the combined results from all cameras
-try:
-    while True:
-        # Combine the annotated frames side by side (when available)
-        if all(frame is not None for frame in annotated_frames) and draw:
-            combined_frame = np.hstack(annotated_frames)  # Horizontally stack annotated frames
+    def _show_combined_frames(self):
+        """Combine and display annotated frames."""
+        if self.show and all(frame is not None for frame in self.annotated_frames):
+            reordered_frames = self.annotated_frames[3:5] + self.annotated_frames[0:3]
+            combined_frame = np.hstack(reordered_frames)
             cv2.imshow("YOLO Detection with Depth and Masks", combined_frame)
 
-        # Update the 3D plot with robot coordinates from each camera
-        if plot and all(coords is not None for coords in robot_coordinates_list):
-            for (scatter, coords) in zip(scatters, robot_coordinates_list):
-                scatter._offsets3d = coords[:3]  # Update scatter plot data with robot coordinates
-                plt.draw()  # Redraw the plot
-                plt.pause(0.001)  # Pause to update the plot
+    def _update_3d_plot(self):
+        """Update the 3D plot with detection data."""
+        if self.plot and all(coords is not None for coords in self.detection_list):
+            for scatter, detection in zip(self.scatters, self.detection_list):
+                scatter._offsets3d = detection[:3]
+                plt.draw()
+                plt.pause(0.001)
 
-        # Break the loop if 'q' is pressed
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-finally:
-    # Stop threads and release resources before exiting
-    stop_threads = True  # Signal threads to stop
-    for thread in threads:
-        thread.join()  # Wait for all threads to finish
-    for pipeline in pipelines:
-        pipeline.stop()  # Stop the camera pipelines
-    cv2.destroyAllWindows()  # Close all OpenCV windows
+    def stop(self):
+        """Stop the threads and clean up."""
+        self.stop_threads = True
+        for thread in self.threads:
+            thread.join()
+        for pipeline in self.pipelines:
+            pipeline.stop()
+        cv2.destroyAllWindows()
+
+# Example usage
+if __name__ == "__main__":
+    detector = MultiDetection(camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=True, plot=True)
+    detector.start()
