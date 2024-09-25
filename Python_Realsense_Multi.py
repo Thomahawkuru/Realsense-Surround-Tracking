@@ -7,10 +7,11 @@ import threading
 import matplotlib.pyplot as plt
 
 class MultiDetection:
-    def __init__(self, camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=False, plot=False):
+    def __init__(self, camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=False, plot=False, verbose=False):
         self.show = show
         self.draw = draw
         self.plot = plot
+        self.verbose = verbose
         self.detection_type = detection_type
         self.stop_threads = False
 
@@ -58,9 +59,9 @@ class MultiDetection:
     def _initialize_yolo_models(self):
         """Initialize YOLO models based on the detection type."""
         if self.detection_type == 'box':
-            return [YOLO("yolov10x.pt") for _ in range(len(self.pipelines))]
+            return [YOLO("yolov10x.pt", verbose=self.verbose) for _ in range(len(self.pipelines))]
         elif self.detection_type == 'mask':
-            return [YOLO("yolov9e-seg.pt") for _ in range(len(self.pipelines))]
+            return [YOLO("yolov9e-seg.pt", verbose=self.verbose) for _ in range(len(self.pipelines))]
 
     def _init_3d_plot(self):
         """Initialize 3D plotting with matplotlib."""
@@ -101,7 +102,7 @@ class MultiDetection:
             color_image = np.asanyarray(color_frame.get_data())
 
             # Run YOLO tracking
-            results = model.track(color_image, persist=True)
+            results = model.track(color_image, persist=True, verbose=self.verbose)
 
             # Visualization
             if self.draw:
@@ -220,7 +221,9 @@ class MultiDetection:
             thread = threading.Thread(target=self.process_camera, args=(pipeline, align, profile, model, i, camera_transform))
             thread.start()
             self.threads.append(thread)
-
+    
+    def show_results(self):
+        """Show and or Draw the detection results in plots and images."""
         try:
             while True:
                 self._show_combined_frames()
@@ -261,7 +264,8 @@ class MultiDetection:
 # Example usage
 if __name__ == "__main__":
     try:
-        detector = MultiDetection(camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=True, plot=False)
+        detector = MultiDetection(camera_config_path='CAMERAS.json', detection_type='mask', show=True, draw=True, plot=False, verbose=True)
         detector.start()
+        detector.show_results()
     except:
         print('Exception occured')
