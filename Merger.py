@@ -23,7 +23,7 @@ class Merger:
         self.fig, self.ax = plt.subplots(figsize=(10, 10))  # 2D plot
         self.ax.set_xlabel('X')  # X-axis
         self.ax.set_ylabel('Z')  # Z on the Y-axis
-
+        self.ax.set_title('Top Down view of detections, single and merged')
         # Set axis limits
         self.ax.set_xlim([-10, 10])
         self.ax.set_ylim([-10, 10])  # Z-axis limits now on Y-axis
