@@ -6,7 +6,7 @@ from ultralytics import YOLO
 import threading
 import matplotlib.pyplot as plt
 
-class MultiDetection:
+class MultiDetector:
     def __init__(self, camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=False, plot=False, verbose=False):
         self.show = show
         self.draw = draw
@@ -65,15 +65,14 @@ class MultiDetection:
 
     def _init_3d_plot(self):
         """Initialize 3D plotting with matplotlib."""
-        import matplotlib.pyplot as plt
         self.fig = plt.figure(figsize=(10, 10))
         self.ax = self.fig.add_subplot(111, projection='3d')
         self.ax.set_xlabel('X')
         self.ax.set_ylabel('Y')
         self.ax.set_zlabel('Z')
-        self.ax.set_xlim([-3, 3])
-        self.ax.set_ylim([-3, 3])
-        self.ax.set_zlim([-1, 2])
+        self.ax.set_xlim([-5, 5])
+        self.ax.set_ylim([-2, 1])
+        self.ax.set_zlim([-5, 5])
 
         self.scatters = []
         colors = ['r', 'b', 'g', 'y', 'k']
@@ -120,7 +119,7 @@ class MultiDetection:
                 x_robot, y_robot, z_robot, object_ids, object_names = self._process_results_mask(results, depth_image, depth_frame, annotated_frame, intrinsics, camera_transform)
 
             self.annotated_frames[idx] = annotated_frame
-            self.detection_list[idx] = (x_robot, z_robot, y_robot, object_ids, object_names, idx + 1)
+            self.detection_list[idx] = (x_robot, y_robot, z_robot, object_ids, object_names, idx + 1)
 
             if self.stop_threads:
                 break  # Exit the loop if stop signal is set
@@ -152,7 +151,7 @@ class MultiDetection:
 
                     if self.draw and self.show:
                         # Annotate the frame with the object's robot position
-                        label = f"ID {obj_id} ({obj_name}):\n({x:.2f}, {y:.2f}, {z:.2f})"
+                        label = f"ID {obj_id} ({obj_name}):\n({robot_coordinates[0]:.1f}, {robot_coordinates[1]:.1f}, {robot_coordinates[2]:.1f})"
                         lines = label.split('\n')
                         for j, line in enumerate(lines):
                             text_size, _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
@@ -197,7 +196,7 @@ class MultiDetection:
                     
                     if self.draw and self.show:
                         # Annotate the frame with the object's robot position
-                        label = f"ID {obj_id} ({obj_name}):\n({x:.2f}, {y:.2f}, {z:.2f})"
+                        label = f"ID {obj_id} ({obj_name}):\n({robot_coordinates[0]:.1f}, {robot_coordinates[1]:.1f}, {robot_coordinates[2]:.1f})"
                         lines = label.split('\n')
                         for j, line in enumerate(lines):
                             text_size, _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
@@ -230,7 +229,7 @@ class MultiDetection:
         try:
             while True:
                 self.show_combined_frames()
-                self.update_3d_plot()
+                self._update_3d_plot()
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -247,7 +246,7 @@ class MultiDetection:
             combined_frame = np.hstack(reordered_frames)
             cv2.imshow("YOLO Detection with Depth and Masks", combined_frame)
 
-    def update_3d_plot(self):
+    def _update_3d_plot(self):
         """Update the 3D plot with detection data."""
         if self.plot and all(coords is not None for coords in self.detection_list):
             for scatter, detection in zip(self.scatters, self.detection_list):
@@ -268,7 +267,7 @@ class MultiDetection:
 # Example usage
 if __name__ == "__main__":
     try:
-        detector = MultiDetection(camera_config_path='CAMERAS.json', detection_type='mask', show=True, draw=True, plot=False, verbose=True)
+        detector = MultiDetector(camera_config_path='CAMERAS_Jackal04.json', detection_type='mask', show=True, draw=True, plot=True, verbose=False)
         detector.start()
         detector.show_results()
     except:
