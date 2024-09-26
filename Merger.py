@@ -25,8 +25,8 @@ class Merger:
         self.ax.set_ylabel('Z')  # Z on the Y-axis
 
         # Set axis limits
-        self.ax.set_xlim([-5, 5])
-        self.ax.set_ylim([-5, 5])  # Z-axis limits now on Y-axis
+        self.ax.set_xlim([-10, 10])
+        self.ax.set_ylim([-10, 10])  # Z-axis limits now on Y-axis
 
         # Add an arrow in the positive Z direction at (0, 0)
         self.ax.annotate('', xy=(0, 0), xytext=(0, -0.3),
