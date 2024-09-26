@@ -227,7 +227,7 @@ class MultiDetection:
         try:
             while True:
                 self.show_combined_frames()
-                self._update_3d_plot()
+                self.update_3d_plot()
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
@@ -244,7 +244,7 @@ class MultiDetection:
             combined_frame = np.hstack(reordered_frames)
             cv2.imshow("YOLO Detection with Depth and Masks", combined_frame)
 
-    def _update_3d_plot(self):
+    def update_3d_plot(self):
         """Update the 3D plot with detection data."""
         if self.plot and all(coords is not None for coords in self.detection_list):
             for scatter, detection in zip(self.scatters, self.detection_list):

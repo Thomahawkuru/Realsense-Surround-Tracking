@@ -6,9 +6,9 @@ import cv2
 
 def calculate_average_position(detections):
     """Calculate the average position of detections."""
-    avg_x = np.mean([d[0] for d in detections])
-    avg_y = np.mean([d[1] for d in detections])
-    avg_z = np.mean([d[2] for d in detections])
+    avg_x = "%.5f" % np.mean([d[0] for d in detections])
+    avg_y = "%.5f" % np.mean([d[1] for d in detections])
+    avg_z = "%.5f" % np.mean([d[2] for d in detections])
     return avg_x, avg_y, avg_z
 
 def find_similar_detections(detection_list, threshold=0.1):
@@ -94,10 +94,10 @@ def find_similar_detections(detection_list, threshold=0.1):
 
 def merge_detection(threshold):
     # Load camera configuration from JSON file
-    camera_config_path = 'CAMERAS.json'
+    camera_config_path = 'CAMERAS_doubletest.json'
 
     # Initialize the MultiDetection classq
-    detector = MultiDetection(camera_config_path=camera_config_path, detection_type='mask', show=True, draw=True, plot=False, verbose=False)
+    detector = MultiDetection(camera_config_path=camera_config_path, detection_type='mask', show=True, draw=True, plot=True, verbose=False)
 
     try:
         # Start the detection process
@@ -120,7 +120,7 @@ def merge_detection(threshold):
             for det in similar_detections:
                 if len(det['object_id']) > 1:
                     avg_pos = det['average_position']
-                    print(f"Detected multiple {det['object_name']} (ID: {det['object_id']}) at average position {avg_pos} from cameras {det['cameras']}")
+                    print(f"Detected duplicate {det['object_name']} (ID: {det['object_id']}) at average position {avg_pos} from cameras {det['cameras']}")
                 else:
                     pos = det['positions'][0]
                     print(f"Detected {det['object_name']} (ID: {det['object_id']}) at position {pos} from camera {det['cameras']}")
@@ -128,6 +128,8 @@ def merge_detection(threshold):
             time.sleep(0.1)
             
             detector.show_combined_frames()
+            detector.update_3d_plot()
+
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
