@@ -73,7 +73,7 @@ class MultiDetector:
         self.ax.set_xlim([-5, 5])
         self.ax.set_ylim([-2, 1])
         self.ax.set_zlim([-5, 5])
-
+        
         self.scatters = []
         colors = ['r', 'b', 'g', 'y', 'k']
         labels = [f'Camera {i + 1}' for i in range(len(self.serials))]

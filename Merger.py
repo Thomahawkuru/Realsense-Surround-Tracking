@@ -5,6 +5,7 @@ import threading
 import cv2
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 class Merger:
     def __init__(self, camera_config_path, detection_type='mask', threshold=0.1, show=True, plot=True):
@@ -15,24 +16,32 @@ class Merger:
         self.plot = plot
         self.detector = MultiDetector(camera_config_path=self.camera_config_path, detection_type=self.detection_type, show=True, draw=True, plot=False, verbose=False)
         if plot:
-            self._init_3d_plot()
-    
-    def _init_3d_plot(self):
-        """Initialize 3D plotting with matplotlib."""
-        self.fig = plt.figure(figsize=(10, 10))
-        self.ax = self.fig.add_subplot(111, projection='3d')
-        self.ax.set_xlabel('X')
-        self.ax.set_ylabel('Y')
-        self.ax.set_zlabel('Z')
+            self._init_plot()
+
+    def _init_plot(self):
+        """Initialize 2D plotting with matplotlib."""
+        self.fig, self.ax = plt.subplots(figsize=(10, 10))  # 2D plot
+        self.ax.set_xlabel('X')  # X-axis
+        self.ax.set_ylabel('Z')  # Z on the Y-axis
+
+        # Set axis limits
         self.ax.set_xlim([-5, 5])
-        self.ax.set_ylim([-2, 1])
-        self.ax.set_zlim([-5, 5])
+        self.ax.set_ylim([-5, 5])  # Z-axis limits now on Y-axis
+
+        # Add an arrow in the positive Z direction at (0, 0)
+        self.ax.annotate('', xy=(0, 0), xytext=(0, -0.3),
+                        arrowprops=dict(facecolor='green', shrink=0.05, width=2, headwidth=10))
 
         # Initialize scatter objects for single and merged detections
-        self.single_scatter = self.ax.scatter([], [], [], c='b', marker='^', label='Single')
-        self.merged_scatter = self.ax.scatter([], [], [], c='r', marker='o', label='Merged')
+        self.single_scatter = self.ax.scatter([], [], c='b', marker='o', label='Single')
+        self.merged_scatter = self.ax.scatter([], [], c='r', marker='o', label='Merged')
 
-        self.ax.legend(loc='upper right')
+        # Create a custom arrow legend entry using Line2D
+        arrow_legend = Line2D([0], [0], color='green', marker='|', linestyle='None', markersize=10, label='Robot')
+
+        # Add the arrow to the legend along with scatter plots
+        self.ax.legend(handles=[self.single_scatter, self.merged_scatter, arrow_legend], loc='upper right')
+
 
     def calculate_average_position(self, detections):
         """Calculate the average position of detections."""
@@ -110,29 +119,27 @@ class Merger:
         
         return similar_detections
 
-    def plot_3d_results(self, similar_detections):
-        """Plot the raw detections and the merged results in a 3D plot."""
+    def plot_2d_results(self, similar_detections):
+        """Plot the raw detections and the merged results in a 2D plot."""
         
-        # Separate x, y, z coordinates for raw and merged positions
-        pos_x, pos_y, pos_z = [], [], []
-        avg_x, avg_y, avg_z = [], [], []
+        # Separate x, z coordinates for raw and merged positions (since Z is now on the Y-axis)
+        pos_x, pos_z = [], []
+        avg_x, avg_z = [], []
 
         # Organize detection data into the correct format for plotting
         for det in similar_detections:
             if len(det['object_id']) > 1:  # Merged detections
                 avg_pos = det['average_position']
-                avg_x.append(float(avg_pos[0]))
-                avg_y.append(float(avg_pos[1]))
-                avg_z.append(float(avg_pos[2]))
+                avg_x.append(float(avg_pos[0]))  # X
+                avg_z.append(float(avg_pos[2]))  # Z (on Y-axis)
             else:  # Single detections
                 pos = det['positions'][0]
-                pos_x.append(pos[0])
-                pos_y.append(pos[1])
-                pos_z.append(pos[2])
-
+                pos_x.append(pos[0])  # X
+                pos_z.append(pos[2])  # Z (on Y-axis)
+            
         # Update scatter plot data
-        self.single_scatter._offsets3d = (pos_x, pos_y, pos_z)
-        self.merged_scatter._offsets3d = (avg_x, avg_y, avg_z)
+        self.single_scatter.set_offsets(np.c_[pos_x, pos_z])
+        self.merged_scatter.set_offsets(np.c_[avg_x, avg_z])
 
         # Redraw the plot
         plt.draw()
@@ -163,7 +170,7 @@ class Merger:
                         pos = det['positions'][0]
                         print(f"Detected {det['object_name']} (ID: {det['object_id']}) at position {pos} from camera {det['cameras']}")
 
-                if self. plot: self.plot_3d_results(similar_detections)
+                if self. plot: self.plot_2d_results(similar_detections)
                 if self.show: self.detector.show_combined_frames()
                 time.sleep(0.1)
 
