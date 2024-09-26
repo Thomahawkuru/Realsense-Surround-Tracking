@@ -135,7 +135,7 @@ def merge_detection(threshold):
 
     finally:
         # Stop the detector to clean up
-        detector.stop
+        detector.stop()
 
 if __name__ == "__main__":
     merge_detection(threshold=0.3)

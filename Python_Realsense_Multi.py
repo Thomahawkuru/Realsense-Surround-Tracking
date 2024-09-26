@@ -122,6 +122,9 @@ class MultiDetection:
             self.annotated_frames[idx] = annotated_frame
             self.detection_list[idx] = (x_robot, z_robot, y_robot, object_ids, object_names, idx + 1)
 
+            if self.stop_threads:
+                break  # Exit the loop if stop signal is set
+
     def _process_results_box(self, results, depth_image, depth_frame, annotated_frame, intrinsics, camera_transform):
         """Process YOLO results and compute 3D coordinates."""
         x_robot, y_robot, z_robot, object_ids, object_names = [], [], [], [], []
@@ -260,6 +263,7 @@ class MultiDetection:
         for pipeline in self.pipelines:
             pipeline.stop()
         cv2.destroyAllWindows()
+        plt.close
 
 # Example usage
 if __name__ == "__main__":
