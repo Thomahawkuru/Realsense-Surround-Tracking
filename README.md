@@ -57,7 +57,7 @@ The configuration can be verified using `plot_cameras.py`. Camera config files f
 
 ## Usage
 ### Running Object Detection
-To start object detection using 5 cameras:
+To test object detection using multiple cameras:
 
 ```bash
 python multidetector.py
@@ -99,8 +99,8 @@ This will:
 
 
 ## File Overview
-- `multidetector.py`: Main script that runs YOLO object detection on multiple RealSense cameras and outputs 3D coordinates for each detected object.
-- `merger.py`: Script for merging object detections across cameras and plotting the results.
+- `multidetector.py`: Main class that runs YOLO object detection on multiple RealSense cameras and outputs 3D coordinates for each detected object.
+- `merger.py`: Class for merging object detections across cameras and plotting the results.
 - `CAMERAS.json`: Configuration file specifying the serial numbers and extrinsics for each camera.
 - `plot_cameras.py`: Visualize camera extrinsics specified in CAMERAS.json as verification
 
