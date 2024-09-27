@@ -91,7 +91,7 @@ merger.merge_and_plot_detections()
 ```
 
 This will:
-- Start YOLO detection on all cameras in separate threads
+- Start YOLO detection on all cameras in separate threads using the MultiDetector class
 - Merge similar objects detected from different perspectives
 - Optionally, display both individual and merged detections in a 2D plot and camera feed
 
