@@ -2,6 +2,8 @@
 
 This project implements real-time object detection and tracking using multiple Intel RealSense cameras and YOLO object detection models. The cameras are placed in a surround configuration to detect objects from multiple perspectives, calculate their 3D coordinates, and merge similar detections across the cameras. This system is meant for robotics and autonomous systems that require a 360-degree field of view.
 
+![Jackal 04](images/1713355382417.png)
+
 ## Table of Contents
 - [Features](#features)
 - [Setup](#setup)
@@ -102,3 +104,4 @@ This will:
 - `CAMERAS.json`: Configuration file specifying the serial numbers and extrinsics for each camera.
 - `plot_cameras.py`: Visualize camera extrinsics specified in CAMERAS.json as verification
 
+![plot_cameras.py example](images/camera_config.png)
