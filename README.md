@@ -28,7 +28,7 @@ This project implements real-time object detection and tracking using multiple I
 
 You can install the required dependencies using the following command:
 ```bash
-pip install opencv-python numpy matplotlib pyrealsense2 ultralytics
+pip install --no-cache-dir -r requirements.txt
 ```
 
 ### Hardware Requirements
