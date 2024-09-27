@@ -1,6 +1,6 @@
-# YOLO Object Tracking with 5 RealSense Cameras in Surround Configuration
+# YOLO Object Tracking with multiple RealSense Cameras in Surround Configuration
 
-This project implements real-time object detection and tracking using 5 Intel RealSense cameras and the YOLO (You Only Look Once) object detection model. The cameras are placed in a surround configuration to detect objects from multiple perspectives, calculate their 3D coordinates, and merge similar detections across the cameras. This system is ideal for robotics and autonomous systems that require a 360-degree field of view.
+This project implements real-time object detection and tracking using multiple Intel RealSense cameras and YOLO object detection models. The cameras are placed in a surround configuration to detect objects from multiple perspectives, calculate their 3D coordinates, and merge similar detections across the cameras. This system is meant for robotics and autonomous systems that require a 360-degree field of view.
 
 ## Table of Contents
 - [Features](#features)
@@ -9,7 +9,7 @@ This project implements real-time object detection and tracking using 5 Intel Re
 - [File Overview](#file-overview)
 
 ## Features
-- **Multi-camera setup:** Uses 5 RealSense cameras for complete surround detection.
+- **Multi-camera setup:** Uses multiple RealSense cameras for complete surround detection.
 - **YOLOv10 and YOLOv9_seg models:** Support for both box-based and mask-based detection.
 - **Real-time 3D tracking:** Converts 2D detections into 3D coordinates using camera depth data.
 - **Object merging:** Detects and merges similar objects across different camera views.
