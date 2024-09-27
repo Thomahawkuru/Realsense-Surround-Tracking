@@ -67,6 +67,21 @@ This will:
 - Optionally, Visualize the 2D detection results
 - Optionally, display the detections in a 3D plot
 
+### Arguments
+You can modify the behavior of the detectors with the following arguments in `multidetector.py` and `merger.py`:
+- `camera_config_path`: Path to the JSON file containing camera serials and extrinsics.
+- `detection_type`: Choose between `'box'` for bounding box detection or `'mask'` for segmentation mask detection.
+- `show`: Enable/disable showing the real-time video feed.
+- `draw`: Enable/disable annotations on the video feed.
+- `plot`: Enable/disable 3D plotting of object positions.
+- `verbose`: Enable/disable verbose output for debugging.
+
+Example:
+```python
+detector = MultiDetector(camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=True, plot=False, verbose=False)
+detector.start()
+```
+
 ### Merging Detections
 To merge detections across multiple cameras and visualize the results:
 
@@ -79,19 +94,6 @@ This will:
 - Merge similar objects detected from different perspectives
 - Optionally, display both individual and merged detections in a 2D plot and camera feed
 
-### Arguments
-You can modify the behavior of the detectors with the following arguments in `multidetector.py` and `merger.py`:
-- `camera_config_path`: Path to the JSON file containing camera serials and extrinsics.
-- `detection_type`: Choose between `'box'` for bounding box detection or `'mask'` for segmentation mask detection.
-- `show`: Enable/disable showing the real-time video feed.
-- `draw`: Enable/disable annotations on the video feed.
-- `plot`: Enable/disable 3D plotting of object positions.
-- `verbose`: Enable/disable verbose output for debugging.
-
-Example:
-```python
-detector = MultiDetector(camera_config_path='CAMERAS.json', detection_type='box', show=True, draw=True, plot=False)
-```
 
 ## File Overview
 - `multidetector.py`: Main script that runs YOLO object detection on multiple RealSense cameras and outputs 3D coordinates for each detected object.
