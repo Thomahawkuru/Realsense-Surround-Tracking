@@ -86,7 +86,8 @@ detector.start()
 To merge detections across multiple cameras and visualize the results:
 
 ```bash
-python merger.py
+merger = Merger(camera_config_path='CAMERAS_Jackal04.json', threshold=0.35, show=True, plot=True)
+merger.merge_and_plot_detections()
 ```
 
 This will:
