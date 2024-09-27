@@ -32,21 +32,18 @@ pip install opencv-python numpy matplotlib pyrealsense2 ultralytics
 ```
 
 ### Hardware Requirements
-- 5 Intel RealSense depth cameras (D435 or similar)
+- one or multiple Intel RealSense depth cameras (D455 or similar)
 - USB 3.0 ports for camera connectivity
-- A system with GPU support is recommended for YOLO detection
+- A system with CUDA support is recommended for YOLO detection
 
 ### Camera Configuration
-Create a JSON configuration file `CAMERAS.json` with the serial numbers of the 5 RealSense cameras:
+Create a JSON configuration file `CAMERAS.json` with the serial numbers of the RealSense cameras:
 
 ```json
 {
     "serials": [
         "1234567890",
-        "1234567891",
-        "1234567892",
-        "1234567893",
-        "1234567894"
+        ...
     ],
     "extrinsics": {
         "1234567890": [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]],
@@ -67,8 +64,8 @@ python multidetector.py
 
 This will:
 - Initialize the RealSense cameras
-- Run YOLO object detection on each camera
-- Visualize the 2D detection results
+- Run YOLO object detection on each camera in separate threads
+- Optionally, Visualize the 2D detection results
 - Optionally, display the detections in a 3D plot
 
 ### Merging Detections
@@ -79,7 +76,7 @@ python merger.py
 ```
 
 This will:
-- Start YOLO detection on all cameras
+- Start YOLO detection on all cameras in separate threads
 - Merge similar objects detected from different perspectives
 - Display both individual and merged detections in a 2D plot and camera feed
 
@@ -101,18 +98,4 @@ detector = MultiDetector(camera_config_path='CAMERAS.json', detection_type='box'
 - `multidetector.py`: Main script that runs YOLO object detection on multiple RealSense cameras and outputs 3D coordinates for each detected object.
 - `merger.py`: Script for merging object detections across cameras and plotting the results.
 - `CAMERAS.json`: Configuration file specifying the serial numbers and extrinsics for each camera.
-
-## Examples
-### Real-Time Detection Example
-![YOLO Object Detection in Surround View](https://via.placeholder.com/640x360)
-
-The above image shows object detection results from multiple cameras stitched together in real-time.
-
-### 3D Plot Example
-![3D Object Tracking](https://via.placeholder.com/640x360)
-
-The system converts the 2D object positions into 3D coordinates, which are displayed in a 3D plot.
-
-## Contributions
-Contributions are welcome! Please open a pull request or submit an issue for any bug reports, feature requests, or improvements.
 
