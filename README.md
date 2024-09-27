@@ -53,7 +53,7 @@ Create a JSON configuration file `CAMERAS.json` with the serial numbers of the R
 ```
 
 Each camera's extrinsic transformation matrix should be provided to align them in the 3D space. 
-The configuration can be verified using `plot_cameras.py`
+The configuration can be verified using `plot_cameras.py`. Camera config files for Jackal 04 with 5 cameras is included. 
 
 ## Usage
 ### Running Object Detection
