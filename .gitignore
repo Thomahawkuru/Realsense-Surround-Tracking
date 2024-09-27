@@ -1,3 +1,4 @@
 yolo*.pt
 rtdetr*
 temp.py
+__pycache__/
