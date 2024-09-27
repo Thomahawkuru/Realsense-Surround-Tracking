@@ -78,7 +78,7 @@ python merger.py
 This will:
 - Start YOLO detection on all cameras in separate threads
 - Merge similar objects detected from different perspectives
-- Display both individual and merged detections in a 2D plot and camera feed
+- Optionally, display both individual and merged detections in a 2D plot and camera feed
 
 ### Arguments
 You can modify the behavior of the detectors with the following arguments in `multidetector.py` and `merger.py`:
