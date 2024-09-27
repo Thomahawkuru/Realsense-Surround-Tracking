@@ -270,5 +270,5 @@ if __name__ == "__main__":
         detector = MultiDetector(camera_config_path='CAMERAS_Jackal04.json', detection_type='mask', show=True, draw=True, plot=True, verbose=False)
         detector.start()
         detector.show_results()
-    except:
-        print('Exception occured')
+    except Exception as e:
+        print(f'Exception occured: {e}')
