@@ -7,12 +7,10 @@ This project implements real-time object detection and tracking using 5 Intel Re
 - [Setup](#setup)
 - [Usage](#usage)
 - [File Overview](#file-overview)
-- [Examples](#examples)
-- [Contributions](#contributions)
 
 ## Features
 - **Multi-camera setup:** Uses 5 RealSense cameras for complete surround detection.
-- **YOLOv5 and YOLOv8 models:** Support for both box-based and mask-based detection.
+- **YOLOv10 and YOLOv9_seg models:** Support for both box-based and mask-based detection.
 - **Real-time 3D tracking:** Converts 2D detections into 3D coordinates using camera depth data.
 - **Object merging:** Detects and merges similar objects across different camera views.
 - **Live visualization:** Real-time display of detection results in both 2D and 3D.
@@ -98,4 +96,5 @@ detector = MultiDetector(camera_config_path='CAMERAS.json', detection_type='box'
 - `multidetector.py`: Main script that runs YOLO object detection on multiple RealSense cameras and outputs 3D coordinates for each detected object.
 - `merger.py`: Script for merging object detections across cameras and plotting the results.
 - `CAMERAS.json`: Configuration file specifying the serial numbers and extrinsics for each camera.
+- `plot_cameras.py`: Visualize camera extrinsics specified in CAMERAS.json as verification
 
