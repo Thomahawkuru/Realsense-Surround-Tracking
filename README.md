@@ -50,7 +50,8 @@ Create a JSON configuration file `CAMERAS.json` with the serial numbers of the R
 }
 ```
 
-Each camera's extrinsic transformation matrix should be provided to align them in the 3D space.
+Each camera's extrinsic transformation matrix should be provided to align them in the 3D space. 
+The configuration can be verified using `plot_cameras.py`
 
 ## Usage
 ### Running Object Detection
